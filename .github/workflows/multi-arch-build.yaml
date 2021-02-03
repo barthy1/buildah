@@ -1,0 +1,68 @@
+name: build multi-arch images
+
+on:
+  push:
+    branches: [ mult_arch_build ]
+  pull_request: 
+    branches: [ master ]
+  schedule: 
+  - cron:  '0 8 * * *'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  multi:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      -
+        name: Build Buildah stable
+        uses: docker/build-push-action@v2
+        with:
+          context: contrib/buildahimage/stable
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
+          push: false
+          load: true
+      -
+        name: Login to Quay buildah
+        if: github.event_name == 'scedule' || github.event_name == 'push'
+        uses: docker/login-action@v1 
+        with:
+          registry: quay.io
+          username: ${{ secrets.BUILDAH_QUAY_USERNAME }}
+          password: ${{ secrets.BUILDAH_QUAY_PASSWORD }}
+      -
+        name: Login to Quay containers
+        if: github.event_name == 'scedule' || github.event_name == 'push'
+        uses: docker/login-action@v1
+        with:
+          registry: quay.io
+          username: ${{ secrets.CONTAINERS_QUAY_USERNAME }}
+          password: ${{ secrets.CONTAINERS_QUAY_PASSWORD }}
+        
+      -
+        name: Build and push Buildah stable
+        if: github.event_name == 'scedule' || github.event_name == 'push'
+        uses: docker/build-push-action@v2
+        with:
+          context: contrib/buildahimage/stable
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
+          push: true
+          tags: |
+            barthy/test:latest
+            barthy/test:1.0.0
+          labels: |
+            org.opencontainers.image.source=${{ github.event.repository.html_url }}
+            org.opencontainers.image.revision=${{ github.sha }}
